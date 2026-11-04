@@ -1,0 +1,19 @@
+{
+  "name": "sinal-semanal",
+  "version": "1.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "mock": "MOCK=1 node server.js",
+    "test": "node --test",
+    "setup": "python3 atalhos/bolsai.py setup",
+    "health": "python3 atalhos/bolsai.py health",
+    "ativos": "python3 atalhos/bolsai.py ativos"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

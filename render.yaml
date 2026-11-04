@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: sinal-semanal
+    runtime: node
+    plan: starter        # o plano grátis dorme após 15 min sem acesso e perderia o monitoramento
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    disk:                # disco persistente: histórico e aprendizado sobrevivem a desligar/ligar e a novos deploys
+      name: bolsai-dados
+      mountPath: /var/data
+      sizeGB: 2
+    envVars:
+      - key: HISTORY_DIR
+        value: /var/data/historico
+      - key: MEMORY_FILE
+        value: /var/data/model-memory.json
+      - key: ACCESS_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LEARN_PASS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: BRAPI_TOKEN
+        sync: false
+      - key: TWELVEDATA_KEY
+        sync: false
