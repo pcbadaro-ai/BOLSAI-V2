@@ -316,7 +316,7 @@ function renderList() {
     const an = anOf(a), ch = a.price ? a.price / a.open24 - 1 : 0, f = finalOf(a);
     const right = an ? `<span class="pill ${f}">${LABEL[f]}</span><span class="mono ${cls(an.st.med)}" style="font-size:12px">${pct(an.st.med)} em ${an.H}d</span>` : `<span class="skel"></span>`;
     return `<button class="row" data-id="${a.sym}" aria-pressed="${selected === a}">
-      <span><span class="sym">${a.sym}</span><span class="nm">${a.name}</span><br><span class="px mono">${a.price ? money(a, a.price) : "…"}</span> <span class="chg mono ${cls(ch)}">${a.price ? pct(ch, 2) : ""}</span></span>
+      <span><span class="sym">${a.sym}</span><span class="nm">${a.name}</span><br><span class="px mono" title="${a.erro ? esc(a.erro) : ''}">${a.price ? money(a, a.price) : (a.erro ? "sem preço" : "…")}</span> <span class="chg mono ${cls(ch)}">${a.price ? pct(ch, 2) : ""}</span></span>
       <span class="rr">${right}</span></button>`;
   }).join("");
 }
