@@ -333,7 +333,7 @@ function reasonText(a) {
   const base = `Em ${st.n} momentos passados com gráfico parecido, o preço subiu em ${Math.round(st.pUp * 100)}% dos casos, com mediana de ${pct(st.med)} em ${H} ${unit(a)}. É um retrato do histórico, não uma previsão.`;
   if (rec === "buy") return base + ` Nos testes fora da amostra esse tipo de sinal acertou ${Math.round(bt.buyWin * 100)}% das vezes (confiança ${conf}).`;
   if (rec === "obs" && anOf(a).semAprovacao) return base + " O padrão lembra um sinal de compra, mas este ativo não passou na checagem de robustez (sem vantagem comprovada fora da amostra), então fica em Observar.";
-  if (rec === "obs") return base + (bt.buyWin == null ? " Esse tipo de sinal quase não apareceu no histórico, então a confiança é baixa." : ` Nos testes passados esse sinal não superou o acaso de forma clara (acerto ${Math.round(bt.buyWin * 100)}% contra ${Math.round(bt.base * 100)}% do mercado).`);
+  if (rec === "obs") return base + (bt.buyWin == null || bt.nEff < 10 ? " Esse tipo de sinal teve poucos testes independentes no histórico, então não dá para medir o acerto e a confiança é baixa." : ` Nos testes passados esse sinal não superou o acaso de forma clara (acerto ${Math.round(bt.buyWin * 100)}% contra ${Math.round(bt.base * 100)}% do mercado).`);
   if (anOf(a).lowData) return base + " Há poucos casos parecidos no histórico para este horizonte, então não há base para opinar.";
   if (rec === "avoid") return base + " O histórico parecido pende para queda.";
   return base + " Não há vantagem clara para nenhum lado.";
@@ -388,7 +388,7 @@ function renderDetail(a) {
     ${a.stale ? `<div class="warn">Os dados deste ativo não atualizam há mais de 36 horas. Não use este sinal.</div>` : ""}
     <canvas id="chart" aria-label="Gráfico de ${a.sym} com projeção"></canvas>
     <div class="grid">
-      <div class="m"><div class="k">Retorno esperado</div><div class="v ${cls(st.med)}">${pct(st.med)}</div><div class="s">mediana em ${an.H} ${unit(a)}</div></div>
+      <div class="m"><div class="k">Retorno esperado</div><div class="v ${cls(st.med)}">${pct(st.med)}</div><div class="s">${bt.nEff < 10 ? "amostra pequena, só histórico" : `mediana em ${an.H} ${unit(a)}`}</div></div>
       <div class="m"><div class="k">Faixa provável</div><div class="v">${pct(st.p10, 0)} a ${pct(st.p90, 0)}</div><div class="s">80% dos casos</div></div>
       <div class="m"><div class="k">Chance de alta</div><div class="v">${Math.round(st.pUp * 100)}%</div><div class="s">em ${st.n} casos</div></div>
       <div class="m"><div class="k">Acerto do sinal</div><div class="v">${bt.buyWin == null || bt.nEff < 10 ? "—" : Math.round(bt.buyWin * 100) + "%"}</div><div class="s">${bt.buyWin == null ? "n/d" : bt.nEff < 10 ? `poucos testes (${bt.nEff} de 10)` : `${bt.nEff} testes independentes`}</div></div>
