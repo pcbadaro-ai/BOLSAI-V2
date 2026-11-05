@@ -2,7 +2,7 @@
 /* Motor de análise por padrões parecidos. Entrada: fechamentos diários JÁ ENCERRADOS + preço atual opcional.
    Tudo o que o modelo sabe em cada data vem só de dados anteriores a ela. */
 const D = 15, START = 50, MIN_POOL = 120;
-const MAX_HIST = 1500; // atalho: BTC/ETH têm histórico enorme e travavam; ~4 anos bastam
+const MAX_HIST = 4000; // velas usadas por ativo: ~16 anos de pregão (ações) ou ~11 anos (cripto, que negocia todo dia). Medido: ~0,1-0,2 s por horizonte
 const STEP = 2;        // atalho: backtest avalia 1 dia sim, 1 não (metade do custo)
 
 let K = 28, MIN_N = 12;

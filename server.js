@@ -196,7 +196,7 @@ async function fetchFromProviders(a) {
   const errs = [];
   for (const y of (a.ysyms || [])) {
     try {
-      const r = await yahoo.fetchYahoo(fetchT, y, "6y", "1d");
+      const r = await yahoo.fetchYahoo(fetchT, y, "max", "1d"); // histórico completo; o analysis.js limita a MAX_HIST
       if (r.candles.length >= 200 || (a.ysyms.length === 1 && r.candles.length >= 50)) {
         return { ...r, src: "Yahoo Finance", yUsed: y };
       }
