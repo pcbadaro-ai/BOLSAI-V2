@@ -141,6 +141,7 @@ details p{margin:8px 0}
 .learn-hz b{display:block;font:700 16px var(--mono)}
 .learn-hz span{color:var(--muted);font-size:11px}
 
+.disc{font-size:12px;color:var(--muted);margin:8px 0 4px;line-height:1.4}
 </style>
 </head>
 <body>
@@ -148,7 +149,7 @@ details p{margin:8px 0}
   <header class="top">
     <div>
       <h1>Sinal Semanal</h1>
-      <p class="sub">Padrões do gráfico, notícias, X e IA, atualizados sozinhos no servidor.</p>
+      <p class="sub">Padrões do gráfico, notícias, X e IA, atualizados sozinhos no servidor. Leitura do histórico, não previsão nem recomendação.</p>
     </div>
     <div class="status"><span class="dot" id="dot"></span><span id="stat">conectando…</span><span id="ping"></span></div>
   </header>
@@ -177,15 +178,9 @@ details p{margin:8px 0}
 <div class="learn-modal" id="learnModal" role="dialog" aria-modal="true" aria-labelledby="learnTitle">
   <div class="learn-card">
     <h2 id="learnTitle">Aprendizado</h2>
-    <div id="learnGate">
-      <label for="learnPass">Senha</label>
-      <input type="password" id="learnPass" autocomplete="current-password">
-      <div class="learn-actions">
-        <button type="button" class="primary" id="learnUnlock">Abrir</button>
-        <button type="button" id="learnCancel">Fechar</button>
-      </div>
-      <div class="learn-err" id="learnErr"></div>
-    </div>
+    <div id="learnGate" hidden></div>
+    <div class="learn-actions"><button type="button" id="learnCancel">Fechar</button></div>
+    <div class="learn-err" id="learnErr"></div>
     <div id="learnBody" hidden>
       <div class="rowline"><span>Versão</span><b class="mono" id="lr-ver">—</b></div>
       <div class="rowline"><span>Estudos</span><b class="mono" id="lr-count">—</b></div>
@@ -247,16 +242,15 @@ function exitLabel(a, day) {
 /* ---------- Conexão com o servidor com WSS e fallback ---------- */
 let ws, tries = 0, pingT = 0;
 function connect() {
-  const t = new URLSearchParams(location.search).get("t");
   const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
-  ws = new WebSocket(wsProtocol + location.host + "/ws" + (t ? "?t=" + encodeURIComponent(t) : ""));
+  ws = new WebSocket(wsProtocol + location.host + "/ws");
   ws.onopen = () => { tries = 0; setStat("conectado", true); clearInterval(pingT); const ping = () => ws.readyState === 1 && ws.send(JSON.stringify({ type:"ping", t:performance.now() })); ping(); pingT = setInterval(ping, 4000); };
   ws.onmessage = e => handle(JSON.parse(e.data));
   ws.onclose = () => {
     setStat("reconectando…", false);
     clearInterval(pingT);
     if (tries === 0) {
-      fetch("/health" + (t ? "?t=" + encodeURIComponent(t) : ""))
+      fetch("/health")
         .then(r => r.json())
         .then(data => { if (data.ok) location.reload(); })
         .catch(() => {});
@@ -336,8 +330,9 @@ function paintTick(a, old) {
 
 function reasonText(a) {
   const { st, rec, conf, bt, H } = anOf(a);
-  const base = `Em ${st.n} momentos passados com gráfico parecido, o preço de agora subiria em ${Math.round(st.pUp * 100)}% dos casos, com mediana de ${pct(st.med)} em ${H} ${unit(a)}.`;
+  const base = `Em ${st.n} momentos passados com gráfico parecido, o preço subiu em ${Math.round(st.pUp * 100)}% dos casos, com mediana de ${pct(st.med)} em ${H} ${unit(a)}. É um retrato do histórico, não uma previsão.`;
   if (rec === "buy") return base + ` Nos testes fora da amostra esse tipo de sinal acertou ${Math.round(bt.buyWin * 100)}% das vezes (confiança ${conf}).`;
+  if (rec === "obs" && anOf(a).semAprovacao) return base + " O padrão lembra um sinal de compra, mas este ativo não passou na checagem de robustez (sem vantagem comprovada fora da amostra), então fica em Observar.";
   if (rec === "obs") return base + (bt.buyWin == null ? " Esse tipo de sinal quase não apareceu no histórico, então a confiança é baixa." : ` Nos testes passados esse sinal não superou o acaso de forma clara (acerto ${Math.round(bt.buyWin * 100)}% contra ${Math.round(bt.base * 100)}% do mercado).`);
   if (anOf(a).lowData) return base + " Há poucos casos parecidos no histórico para este horizonte, então não há base para opinar.";
   if (rec === "avoid") return base + " O histórico parecido pende para queda.";
@@ -386,6 +381,7 @@ function renderDetail(a) {
     <div class="head"><h2>${a.sym} <span class="nm" style="font-size:14px">${a.name}</span></h2>
       <div><span class="big" id="bigpx">${money(a, a.price)}</span> <span id="bigchg" class="mono ${cls(ch)}">${pct(ch, 2)} 24h</span></div></div>
     <div class="banner ${f}"><b>${LABEL[f]}</b>${down}<p>${reasonText(a)}</p></div>
+    <div class="disc">Evidência: ${an.semAprovacao ? "sem vantagem comprovada fora da amostra" : (f === "buy" ? "ativo aprovado na checagem de robustez" : "sem sinal de compra aprovado")}. Não é recomendação de investimento; o histórico não garante resultado futuro.</div>
     ${hz !== "1s" && an.conf === "baixa" ? `<p class="muted" style="font-size:13px;margin:0 0 10px">Horizonte de ${HZN[hz]}: o histórico tem poucas janelas independentes desse tamanho, então o acerto não pôde ser comprovado (confiança baixa). Leia como cenário, não como sinal.</p>` : ""}
     ${an.cap ? `<div class="warn">Volatilidade recente ${nf(an.volRatio, 1, 1)}x a normal do último ano: o histórico parecido perde confiabilidade e o sinal de compra foi rebaixado para Observar.</div>` : (an.volRatio >= 1.5 ? `<div class="warn">Volatilidade recente ${nf(an.volRatio, 1, 1)}x a normal do último ano. Leia o sinal com mais cautela.</div>` : "")}
     ${an.gapSigma >= 3 ? `<div class="warn">O preço de agora está bem longe do último fechamento (${nf(an.gapSigma, 1, 1)} desvios diários). Houve movimento forte hoje.</div>` : ""}
@@ -395,7 +391,7 @@ function renderDetail(a) {
       <div class="m"><div class="k">Retorno esperado</div><div class="v ${cls(st.med)}">${pct(st.med)}</div><div class="s">mediana em ${an.H} ${unit(a)}</div></div>
       <div class="m"><div class="k">Faixa provável</div><div class="v">${pct(st.p10, 0)} a ${pct(st.p90, 0)}</div><div class="s">80% dos casos</div></div>
       <div class="m"><div class="k">Chance de alta</div><div class="v">${Math.round(st.pUp * 100)}%</div><div class="s">em ${st.n} casos</div></div>
-      <div class="m"><div class="k">Acerto do sinal</div><div class="v">${bt.buyWin == null ? "—" : Math.round(bt.buyWin * 100) + "%"}</div><div class="s">${bt.buyWin == null ? "n/d" : `${bt.buyWeeks} testes independentes`}</div></div>
+      <div class="m"><div class="k">Acerto do sinal</div><div class="v">${bt.buyWin == null || bt.nEff < 10 ? "—" : Math.round(bt.buyWin * 100) + "%"}</div><div class="s">${bt.buyWin == null ? "n/d" : bt.nEff < 10 ? `poucos testes (${bt.nEff} de 10)` : `${bt.nEff} testes independentes`}</div></div>
       <div class="m"><div class="k">Confiança</div><div class="v">${an.conf}</div><div class="s">backtest</div></div>
       <div class="m"><div class="k">Sair em</div><div class="v" style="font-size:15px">${exit || "sem alvo"}</div><div class="s">${exit ? `dia ${an.exitDay}` : "sem dia positivo"}</div></div>
     </div>
@@ -485,40 +481,27 @@ matchMedia("(prefers-color-scheme:light)").addEventListener("change", () => sele
 setInterval(() => selected && anOf(selected) && renderDetail(selected), 60000);
 
 /* --- painel de aprendizado (senha @Servidor_2026) --- */
-const LEARN_KEY = "bolsai_learn_pass";
 const $learn = (id) => document.getElementById(id);
 function openLearnModal() {
   $learn("learnModal").classList.add("open");
   $learn("learnErr").textContent = "";
   $learn("lr-err2").textContent = "";
-  const saved = sessionStorage.getItem(LEARN_KEY);
-  if (saved) {
-    $learn("learnGate").hidden = true;
-    $learn("learnBody").hidden = false;
-    loadLearning(saved);
-  } else {
-    $learn("learnGate").hidden = false;
-    $learn("learnBody").hidden = true;
-    setTimeout(() => $learn("learnPass").focus(), 50);
-  }
+  $learn("learnBody").hidden = false;
+  loadLearning();
 }
 function closeLearnModal() {
   $learn("learnModal").classList.remove("open");
 }
-async function loadLearning(senha) {
+async function loadLearning() {
   $learn("lr-err2").textContent = "";
   try {
-    const r = await fetch("/aprendizado?s=" + encodeURIComponent(senha), { cache: "no-store" });
+    const r = await fetch("/aprendizado", { cache: "no-store" });
     const j = await r.json();
     if (!r.ok || !j.ok) {
-      sessionStorage.removeItem(LEARN_KEY);
-      $learn("learnGate").hidden = false;
-      $learn("learnBody").hidden = true;
-      $learn("learnErr").textContent = (j && j.erro) || "senha inválida";
+      $learn("learnErr").textContent = (j && j.erro) || "erro ao carregar o aprendizado";
       return;
     }
-    sessionStorage.setItem(LEARN_KEY, senha);
-    $learn("learnGate").hidden = true;
+    $learn("learnErr").textContent = "";
     $learn("learnBody").hidden = false;
     $learn("lr-ver").textContent = j.version || "—";
     $learn("lr-count").textContent = j.count != null ? String(j.count) : "—";
@@ -570,19 +553,8 @@ async function loadLearning(senha) {
   const cancel = $learn("learnCancel"); if (cancel) cancel.onclick = closeLearnModal;
   const close = $learn("learnClose"); if (close) close.onclick = closeLearnModal;
   $learn("learnModal").addEventListener("click", e => { if (e.target === $learn("learnModal")) closeLearnModal(); });
-  const unlock = $learn("learnUnlock");
-  if (unlock) unlock.onclick = () => {
-    const s = ($learn("learnPass") && $learn("learnPass").value) || "";
-    if (!s) { $learn("learnErr").textContent = "Digite a senha"; return; }
-    loadLearning(s);
-  };
-  const pass = $learn("learnPass");
-  if (pass) pass.addEventListener("keydown", e => { if (e.key === "Enter" && unlock) unlock.click(); });
   const ref = $learn("learnRefresh");
-  if (ref) ref.onclick = () => {
-    const s = sessionStorage.getItem(LEARN_KEY) || (pass && pass.value);
-    if (s) loadLearning(s);
-  };
+  if (ref) ref.onclick = () => loadLearning();
 })();
 
 renderList(); connect();
