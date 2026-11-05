@@ -23,8 +23,8 @@ O servidor precisa ficar ligado o tempo todo. Planos grátis que dormem por inat
 **Render (mais simples)**
 1. Coloque esta pasta num repositório do GitHub (pode ser privado).
 2. No Render: New > Blueprint, escolha o repositório. Ele lê o `render.yaml`.
-3. Preencha as variáveis pedidas (deixe em branco o que não for usar). Defina `ACCESS_TOKEN` com uma senha sua.
-4. Abra `https://SEU-APP.onrender.com/?t=SUASENHA` no celular.
+3. Preencha as variáveis pedidas (deixe em branco o que não for usar).
+4. Abra `https://SEU-APP.onrender.com` no celular. O site não tem senha; quem tiver o endereço vê o painel.
 
 **Railway ou Fly.io**: aponte para o repositório. O `Dockerfile` já está pronto (comando `node server.js`, porta lida de `PORT`). Cadastre as mesmas variáveis no painel.
 
@@ -37,7 +37,6 @@ Teste rápido depois de publicar: abra `/health` (ou rode `python3 atalhos/bolsa
 |---|---|---|
 | (nenhuma) | Cripto ao vivo, ações EUA e B3 (Yahoo Finance, fonte não oficial), notícias, dados do Banco Central | grátis |
 | GROQ_API_KEY | Leitura da IA pela Groq (usada só se não houver chave Gemini) | plano grátis/dev da Groq |
-| ACCESS_TOKEN / LEARN_PASS | Senha do painel / do endpoint `/aprendizado` (sem LEARN_PASS o endpoint fica fechado) | grátis |
 | GEMINI_API_KEY | Leitura da IA (Gemini) | conforme o plano da sua conta Google AI. Com 51 ativos e `AI_EVERY_MIN=20` são cerca de 153 chamadas por hora; aumente `AI_EVERY_MIN` para gastar menos |
 | TWELVEDATA_KEY | Fonte principal das ações dos EUA e reserva da B3 | plano grátis serve |
 | BRAPI_TOKEN | Segunda reserva para a B3 | opcional |
@@ -89,10 +88,17 @@ No Render, o servidor grava em `/var/data` (disco definido no `render.yaml`):
 - **sinais**: cada vez que o sinal de um horizonte muda (ou a cada 6 h) o que o modelo disse, com preço, probabilidade e confiança.
 - **resultados**: cada sinal de compra ou de evitar conferido com o preço real depois de H pregões/dias. É o teste para a frente, que o backtest não dá.
 
-Para baixar (precisa de `LEARN_PASS`):
+Para baixar (sem senha; quem tiver o endereço pode baixar):
 
-    https://SEU-SITE/historico?s=SENHA&tipo=sinais
-    https://SEU-SITE/historico?s=SENHA&tipo=resultados
+    https://SEU-SITE/historico?tipo=sinais
+    https://SEU-SITE/historico?tipo=resultados
     https://SEU-SITE/historico?s=SENHA&tipo=mercado
 
 Os arquivos são JSONL (uma linha por registro). `/health` mostra a contagem e o acerto real por horizonte. O aprendizado também fica no disco (`MEMORY_FILE`). Sem disco, o Render apaga tudo a cada deploy ou reinício.
+
+## Validação fora da amostra (pesquisa, v10)
+`npm run pesquisa` roda o walk-forward em várias criptos e ações da B3, com 5 anos de histórico por padrão
+(`--anos 10` para mais), intervalo diário ou 4h nas criptos (`--intervalo 4h`), custo de transação e
+comparação com "sempre subir" e com a regra "comprar acima da média de 200 dias". Gera
+`relatorio/walkforward-DATA.md`. Precisa de internet. Só mude os parâmetros do site se o veredito
+"vantagem fora da amostra" aparecer no relatório. Detalhes e limites: `ALTERACOES-v10.md`.

@@ -1,7 +1,6 @@
 "use strict";
 process.env.MEMORY_FILE = require("os").tmpdir() + "/bolsai-test-memory-" + process.pid + ".json"; // não grava no aprendizado real
 process.env.HISTORY_DIR = require("os").tmpdir() + "/bolsai-test-hist-" + process.pid; // não grava no histórico real
-process.env.LEARN_PASS = "senha-teste-123";
 process.env.GEMINI_API_KEY = "chave-secreta-teste";
 process.env.AI_MODEL = "gemini-modelo-inexistente";
 const { test, after } = require("node:test");
@@ -158,7 +157,7 @@ test("notícias: só manchetes reais, recentes e relevantes, numeradas e com lin
   assert.equal(a.news.length, 2);                // falha não apaga as manchetes anteriores
 });
 
-test("/historico: exige senha, valida o tipo e baixa JSONL com cabeçalho de download", async () => {
+test("/historico: sem senha, valida o tipo e baixa JSONL com cabeçalho de download", async () => {
   const http = require("node:http");
   const HF = require("./lib/history");
   HF.recordSignals({ sym: "ROTA1", mkt: "US", price: 1, baseT: 1000, finals: { "1s": "buy" },
@@ -172,11 +171,8 @@ test("/historico: exige senha, valida o tipo e baixa JSONL com cabeçalho de dow
     }).on("error", reject);
   });
   try {
-    assert.equal((await get("/historico?tipo=sinais")).status, 401);             // sem senha
-    assert.equal((await get("/historico?s=errada&tipo=sinais")).status, 401);    // senha errada (tamanho diferente)
-    assert.equal((await get("/historico?s=senha-errada-xx&tipo=sinais")).status, 401); // mesmo tamanho
-    assert.equal((await get("/historico?s=senha-teste-123&tipo=lixo")).status, 400);
-    const ok = await get("/historico?s=senha-teste-123&tipo=sinais");
+    assert.equal((await get("/historico?tipo=lixo")).status, 400);               // tipo inválido
+    const ok = await get("/historico?tipo=sinais");                              // sem senha: o site é público
     assert.equal(ok.status, 200);
     assert.match(ok.headers["content-type"], /ndjson/);
     assert.match(ok.headers["content-disposition"], /attachment; filename="bolsai-sinais-/);
