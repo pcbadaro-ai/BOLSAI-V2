@@ -51,6 +51,7 @@ const AI_CONC = 1;
 const MOCK = !!ENV.MOCK;
 
 const HZN = { "1s": 5, "1m": 21, "5m": 105 }; // pregões (ações)
+const HZ_NAME = { "1s": "1 semana", "1m": "1 mês", "5m": "5 meses" }; // nomes do painel; 1s/1m/5m são chaves internas
 const HZN_C = { "1s": 7, "1m": 30, "5m": 150 }; // dias (cripto)
 
 /* ---------- Universo ---------- */
@@ -306,7 +307,7 @@ async function fetchNews(a) {
   } catch (e) {
     if (!list.length) throw e;
   }
-  const filtered = news.dedupe(list).filter(n => news.relevant(n.title, terms)).slice(0, 12);
+  const filtered = news.dedupe(list).filter(n => news.reliable(n) && news.relevant(n.title, terms)).slice(0, 12);
   a.news = filtered.map((n, i) => ({ ...n, id: "N" + (i + 1) }));
   a.newsAt = Date.now();
   return a.news;
@@ -367,6 +368,11 @@ function numbersNotFound(text, dados) {
   return out;
 }
 
+// Remove frases com números ausentes dos dados (preços/níveis inventados) em vez de mostrá-las.
+function stripInvented(text, dados) {
+  return String(text || "").split(/(?<=[.!?;])\s+/).filter(p => numbersNotFound(p, dados).length === 0).join(" ").trim();
+}
+
 function parseAI(raw) {
   const s = String(raw).replace(/^```json\s*|\s*```$/g, "").trim();
   let d;
@@ -418,9 +424,17 @@ function validateAI(ai, ctx, analyses) {
     ai.recomendacao_1m = apply(analyses["1m"] && analyses["1m"].rec, ai.recomendacao_1m);
     ai.recomendacao_5m = apply(analyses["5m"] && analyses["5m"].rec, ai.recomendacao_5m);
   }
-  const inventados = numbersNotFound(ai.resumo + " " + JSON.stringify(ai.cenarios), ctx.text || "");
+  const inventados = numbersNotFound([ai.resumo, JSON.stringify(ai.cenarios), ai.riscos.join(" "), ai.x].join(" "), ctx.text || "");
   ai.verificado = hasSource && inventados.length === 0 && fantasmas.length === 0;
-  if (inventados.length) ai.notas.push("números não encontrados nos dados: " + inventados.join(", "));
+  if (inventados.length) {
+    ai.notas.push("frases com preços ou números que não estão nos dados foram removidas");
+    const t = ctx.text || "";
+    ai.resumo = stripInvented(ai.resumo, t);
+    for (const k of ["alta", "base", "baixa"]) ai.cenarios[k] = stripInvented(ai.cenarios[k], t);
+    ai.riscos = ai.riscos.map(r => stripInvented(r, t)).filter(Boolean);
+    ai.x = stripInvented(ai.x, t);
+    if (!ai.resumo) ai.resumo = "O resumo da IA foi descartado porque citava números que não estão nos dados. Veja as manchetes abaixo.";
+  }
   if (!hasSource && (ai.recomendacao || ai.recomendacao_1m)) ai.notas.push("rebaixamento sem fonte verificável foi ignorado");
   return ai;
 }
@@ -437,7 +451,7 @@ function aiPrompt(a) {
   for (const [k, H] of Object.entries(a.kind === "crypto" ? HZN_C : HZN)) {
     const r = an[k];
     if (!r) continue;
-    lines.push(k + " (H=" + H + "): rec=" + r.rec + " conf=" + r.conf + " med=" + (r.st.med * 100).toFixed(1) + "% n=" + r.st.n);
+    lines.push(HZ_NAME[k] + " (" + H + (a.kind === "crypto" ? " dias" : " pregões") + "): rec=" + r.rec + " conf=" + r.conf + " med=" + (r.st.med * 100).toFixed(1) + "% n=" + r.st.n + " testes_indep=" + (r.bt ? r.bt.nEff : 0));
   }
   const macro = a.mkt === "BR" && a.macro
     ? "Selic " + (a.macro.selic ?? "n/d") + "%, USD/BRL " + (a.macro.usdbrl ?? "n/d") + ", IPCA12m " + (a.macro.ipca12m != null ? (a.macro.ipca12m * 100).toFixed(1) + "%" : "n/d")
@@ -449,7 +463,7 @@ function aiPrompt(a) {
     "\nManchetes numeradas (cite só esses IDs):\n" + newsBlock +
     "\n\nResponda APENAS um JSON válido:\n" +
     '{"sentimento":-1 a 1,"veredito":"confirma"|"neutro"|"contradiz","recomendacao":"buy"|"wait"|"obs"|"avoid"|null,"recomendacao_1m":idem,"recomendacao_5m":idem,"resumo":"...","riscos":["..."],"cenarios":{"alta":"...","base":"...","baixa":"..."},"x":"...","fontes":["N1",...]}\n' +
-    "Regras: só rebaixe o sinal estatístico se citar ao menos uma manchete real (N1, N2...). Nunca invente números. Nunca melhore o sinal.";
+    "Horizontes: use SEMPRE os nomes 1 semana, 1 mês e 5 meses (nunca 1s, 1m, 5m, segundos ou minutos); recomendacao, recomendacao_1m e recomendacao_5m correspondem a eles. Se testes_indep for menor que 10, não cite taxa de acerto nem apresente a mediana como expectativa de retorno. Não cite preços, níveis de suporte/resistência, alvos nem porcentagens que não estejam neste texto. Regras: só rebaixe o sinal estatístico se citar ao menos uma manchete real (N1, N2...). Nunca invente números. Nunca melhore o sinal.";
   return { text, ctx: { news: fresh, text } };
 }
 

@@ -232,12 +232,12 @@ function analyze(closes, H, price) {
   const sigma = m.sigmaAt(last - H);
   const sig = confirm(rawSignal(st, sigma), m.F[last], m, last);
 
-  // Confiança: alta = ≥2 testes independentes + Wilson > mercado; média = ≥1 teste e acerto ≥ mercado - 3pp
+  // Confiança: alta = ≥MIN_TESTS testes independentes + Wilson > mercado; média = ≥MIN_TESTS testes e acerto ≥ mercado - 3pp; abaixo disso, baixa
   let conf = "baixa";
   if (bt.buyWin != null && bt.nEff > 0) {
     bt.buyLower = wilsonLower(bt.buyWin, bt.nEff, 1.645); // 95% unilateral: antes 80%, dava 'alta' em ~12% do ruído
-    if (bt.nEff >= 2 && bt.buyLower > bt.base) conf = "alta";
-    else if (bt.buyWin >= bt.base - 0.03) conf = "média";
+    if (bt.nEff >= MIN_TESTS && bt.buyLower > bt.base) conf = "alta";
+    else if (bt.nEff >= MIN_TESTS && bt.buyWin >= bt.base - 0.03) conf = "média";
   }
 
   // "Comprar" só com evidência: pelo menos MIN_TESTS testes independentes e acerto acima do mercado
