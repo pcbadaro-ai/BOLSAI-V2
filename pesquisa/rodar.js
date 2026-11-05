@@ -4,6 +4,7 @@
  *
  *   node pesquisa/rodar.js                       # padrão: cripto 1d, 5 anos; ações 5 anos
  *   node pesquisa/rodar.js --anos 10 --folds 6
+ *   node pesquisa/rodar.js --anos 20 --cripto '' --acoes PETR4,VALE3 --acoes-us AAPL,AMZN
  *   node pesquisa/rodar.js --intervalo 4h --anos 2 --cripto BTC,ETH,SOL
  *   node pesquisa/rodar.js --cripto BTC,ETH,SOL,BNB,XRP,ADA --acoes PETR4,VALE3,ITUB4,BBDC4,WEGE3
  *
@@ -34,6 +35,7 @@ const INTERVALO = opt("intervalo", "1d");
 const CRIPTO = list(opt("cripto", "BTC,ETH,SOL,BNB,XRP,ADA,TRX,DOGE,LINK,AVAX"));
 const ACOES = list(opt("acoes", "PETR4,VALE3,ITUB4,BBDC4,WEGE3,ABEV3,BBAS3,SUZB3,PRIO3,B3SA3"));
 const H_CRIPTO_DIAS = list(opt("h-cripto", "7,30")).map(Number);
+const ACOES_US = list(opt("acoes-us", ""));  // ex.: --acoes-us AAPL,AMZN,MSFT (Yahoo, sem .SA)
 const H_ACOES = list(opt("h-acoes", "5,21")).map(Number);
 const CUSTO_CRIPTO = Number(opt("custo-cripto", 0.002)), CUSTO_ACOES = Number(opt("custo-acoes", 0.001));
 const SAIDA = opt("saida", "relatorio");
@@ -59,7 +61,9 @@ async function binance(sym) {
 
 // Yahoo (ações B3 e EUA): preço ajustado por dividendos; descarta o pregão de hoje ainda em andamento.
 async function yahoo(ticker) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${ANOS}y&interval=1d&includeAdjustedClose=true`;
+  // range=15y não existe no Yahoo (só 1y, 2y, 5y, 10y, max); period1/period2 aceitam qualquer janela.
+  const p2 = Math.floor(Date.now() / 1000), p1 = Math.floor(p2 - ANOS * 365.25 * 86400);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${p1}&period2=${p2}&interval=1d&includeAdjustedClose=true`;
   const r = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (compatible; SinalSemanal/1.1)" }, signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error("Yahoo HTTP " + r.status);
   const res = (await r.json()).chart.result[0];
@@ -103,9 +107,11 @@ async function main() {
   console.log(SINTETICO ? "MODO SINTÉTICO: dados aleatórios, só para testar o pipeline." : `Coletando dados (${ANOS} anos, ${INTERVALO} para cripto)...`);
   const cripto = await coletar(CRIPTO, binance, "cripto");
   const acoes = await coletar(ACOES, s => yahoo(s + ".SA"), "B3");
+  const acoesUS = ACOES_US.length ? await coletar(ACOES_US, s => yahoo(s), "EUA") : [];
   const grupos = [
     { nome: "cripto", ativos: cripto, horizontes: H_CRIPTO_DIAS.map(d => Math.max(2, Math.round(d * MS["1d"] / MS[INTERVALO]))), rotulos: H_CRIPTO_DIAS, custo: CUSTO_CRIPTO },
     { nome: "ações B3", ativos: acoes, horizontes: H_ACOES, rotulos: H_ACOES, custo: CUSTO_ACOES },
+    ...(acoesUS.length ? [{ nome: "ações EUA", ativos: acoesUS, horizontes: H_ACOES, rotulos: H_ACOES, custo: CUSTO_ACOES }] : []),
   ];
   const resultado = { geradoEm: new Date().toISOString(), sintetico: SINTETICO, anos: ANOS, folds: FOLDS, intervalo: INTERVALO, grupos: [] };
   for (const g of grupos) {
