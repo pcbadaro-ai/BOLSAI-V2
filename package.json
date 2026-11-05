@@ -1,6 +1,6 @@
 {
   "name": "sinal-semanal",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -11,7 +11,9 @@
     "test": "node --test",
     "setup": "python3 atalhos/bolsai.py setup",
     "health": "python3 atalhos/bolsai.py health",
-    "ativos": "python3 atalhos/bolsai.py ativos"
+    "ativos": "python3 atalhos/bolsai.py ativos",
+    "pesquisa": "node pesquisa/rodar.js",
+    "pesquisa:teste": "node pesquisa/rodar.js --sintetico --anos 4 --folds 4 --saida /tmp/relatorio-sintetico"
   },
   "dependencies": {
     "ws": "^8.18.0"

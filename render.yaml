@@ -15,11 +15,9 @@ services:
         value: /var/data/historico
       - key: MEMORY_FILE
         value: /var/data/model-memory.json
-      - key: ACCESS_TOKEN
-        sync: false
+      - key: LOG_DIR            # logs em arquivo, no disco persistente (sobrevivem a desligar e a deploys)
+        value: /var/data/logs
       - key: GEMINI_API_KEY
-        sync: false
-      - key: LEARN_PASS
         sync: false
       - key: GROQ_API_KEY
         sync: false

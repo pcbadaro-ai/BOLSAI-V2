@@ -220,6 +220,7 @@ function volRegime(closes) {
   return { ratio: long > 0 ? recent / long : null, recent, long };
 }
 
+const MIN_TESTS = 10; // mínimo de testes independentes para afirmar qualquer vantagem
 const minHistory = H => START + MIN_POOL + 2 * H + 30;
 
 function analyze(closes, H, price) {
@@ -239,8 +240,11 @@ function analyze(closes, H, price) {
     else if (bt.buyWin >= bt.base - 0.03) conf = "média";
   }
 
+  // "Comprar" só com evidência: pelo menos MIN_TESTS testes independentes e acerto acima do mercado
+  // com margem estatística. Antes bastavam 2 testes, o que dava sinal de compra com quase nenhuma prova.
+  const evidencia = bt.nEff >= MIN_TESTS && bt.buyWin != null && bt.buyLower != null && bt.buyLower > bt.base;
   let rec = sig, cap = null;
-  if (sig === "buy" && conf === "baixa") rec = "obs";
+  if (sig === "buy" && (conf === "baixa" || !evidencia)) rec = "obs";
   const vr = volRegime(closes);
   if (rec === "buy" && vr.ratio != null && vr.ratio >= VOL_CAP) { rec = "obs"; cap = "volatilidade"; }
   const gapSigma = vr.recent > 0 && shift ? Math.abs(Math.log(1 + shift)) / vr.recent : 0;
@@ -250,4 +254,5 @@ function analyze(closes, H, price) {
   return { st, sig, rec, conf, bt, exitDay, sigma, H, shift, C0, lowData: !(st.n >= MIN_N), cap, volRatio: vr.ratio, gapSigma };
 }
 
-module.exports = { analyze, minHistory, volRegime, VOL_CAP, buildModel, backtestSignals, resignal, stats, neighbors, rawSignal, wilsonLower, stdev, quantile, getParams, setParams };
+// v10: peças expostas para a validação walk-forward (research/walkforward.js). Não mudam o comportamento do servidor.
+module.exports = { analyze, minHistory, volRegime, VOL_CAP, buildModel, backtestSignals, resignal, stats, neighbors, rawSignal, confirm, summarize, wilsonLower, stdev, quantile, getParams, setParams, START, MIN_POOL, STEP, D };

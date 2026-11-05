@@ -44,3 +44,11 @@ Decisões:
 - .gitignore: node_modules/, data/, .env.
 - O que NÃO foi feito: reconstruir sinais de dias em que o site estava desligado (daria para usar backtestSignals para isso, mas seria simulação, não o que o site disse na época). Também não usei os resultados reais para mudar pesos automaticamente; hoje eles só aparecem em /health e no arquivo.
 
+
+## Rodada 5 (v10): validação fora da amostra e filtro de notícias
+Detalhes em `ALTERACOES-v10.md`. Resumo:
+- lib/news.js: relevância com contexto para nomes ambíguos (Tron, Apple, Vale...) e exclusão de ruído (carros, marcas esportivas). Corrige "Audi e-tron" virando "Tron".
+- pesquisa/: walk-forward com blocos disjuntos, padronização sem vazamento, purge, custo de transação, regra de tendência como referência, validação entre ativos e relatório por regime.
+- lib/regime.js: regimes de tendência e volatilidade calculados só com passado.
+- analysis.js: só exporta funções existentes (sem mudar o comportamento).
+- Testes novos: pesquisa/walkforward.test.js (7) e relevance.test.js (4). Suíte: 39/40 (server.test.js precisa do ws).

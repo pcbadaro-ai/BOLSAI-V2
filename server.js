@@ -18,6 +18,19 @@ const { analyze, minHistory } = require("./analysis");
 const memory = require("./lib/memory");
 const history = require("./lib/history");
 const binance = require("./lib/binance");
+const logger = require("./lib/logger");
+
+/* Aprovação por evidência: "Comprar" só aparece para ativo/horizonte que passou na checagem de robustez
+   (pesquisa/robustez.js grava pesquisa/aprovados.json). Sem o arquivo, ninguém está aprovado. */
+const APROVADOS_FILE = path.join(__dirname, "pesquisa", "aprovados.json");
+function loadAprovados() {
+  try {
+    const j = JSON.parse(fs.readFileSync(APROVADOS_FILE, "utf8"));
+    return new Set((j.aprovados || []).map(x => String(x.ativo).replace(/\.SA$/, "") + "|" + x.horizonte));
+  } catch { return new Set(); }
+}
+const APROVADOS = loadAprovados();
+function aprovado(sym, key) { return APROVADOS.has(sym + "|" + key); }
 
 /* ---------- .env mínimo ---------- */
 try {
@@ -29,8 +42,6 @@ try {
 
 const ENV = process.env;
 const PORT = +ENV.PORT || 3000;
-const ACCESS = ENV.ACCESS_TOKEN || "";
-const LEARN_PASS = ENV.LEARN_PASS || ""; // sem senha definida, o endpoint /aprendizado fica desligado
 const GEMINI_KEY = ENV.GEMINI_API_KEY || "";
 const GROQ_KEY = ENV.GROQ_API_KEY || "";
 const TWELVE = ENV.TWELVEDATA_KEY || "";
@@ -313,6 +324,7 @@ async function refreshAnalysis(a) {
     try {
       const res = await runAnalysis(closes, H, a.price);
       if (!res) continue;
+      if (res.rec === "buy" && !aprovado(a.sym, key)) { res.rec = "obs"; res.semAprovacao = true; }
       analyses[key] = res;
       const need = a.kind === "crypto" ? 3 : 2;
       const stable = debounce(a, res.rec, key, need);
@@ -567,7 +579,7 @@ function broadcast(msg) {
   const data = JSON.stringify(msg);
   for (const c of clients) if (c.readyState === WebSocket.OPEN) c.send(data);
 }
-function log(tag, ...args) { console.log("[" + new Date().toISOString().slice(11, 19) + "] [" + tag + "]", ...args); }
+function log(tag, ...args) { console.log("[" + new Date().toISOString().slice(11, 19) + "] [" + tag + "]", ...args); logger.write(tag, args); }
 
 /* ---------- Mock para testes ---------- */
 function mockData() {
@@ -693,18 +705,7 @@ async function aiLoop() {
 }
 
 /* ---------- HTTP + WS ---------- */
-function checkAuth(url) {
-  if (!ACCESS) return true;
-  return url.searchParams.get("t") === ACCESS;
-}
 
-// senha do /aprendizado e /historico (comparação em tempo constante; sem LEARN_PASS, fica fechado)
-function senhaOk(url) {
-  const a = Buffer.from(String(url.searchParams.get("s") || ""));
-  const b = Buffer.from(String(LEARN_PASS));
-  if (!LEARN_PASS.length || a.length !== b.length) return false;
-  try { return require("crypto").timingSafeEqual(a, b); } catch { return false; }
-}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://" + (req.headers.host || "localhost"));
@@ -738,11 +739,6 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/aprendizado") {
     res.setHeader("content-type", "application/json");
     res.setHeader("cache-control", "no-store");
-    if (!senhaOk(url)) {
-      res.statusCode = 401;
-      res.end(JSON.stringify({ ok: false, erro: "senha inválida" }));
-      return;
-    }
     const learn = memory.snapshot(true); // full = todos os testes recentes
     res.end(JSON.stringify({
       ok: true,
@@ -761,14 +757,23 @@ const server = http.createServer(async (req, res) => {
     }));
     return;
   }
-  if (url.pathname === "/historico") {
+  if (url.pathname === "/logs") {
     res.setHeader("cache-control", "no-store");
-    if (!senhaOk(url)) {
-      res.statusCode = 401;
+    const dia = url.searchParams.get("dia");
+    if (url.searchParams.get("lista") === "1") {
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ ok: false, erro: "senha inválida" }));
+      res.end(JSON.stringify({ ...logger.info(), arquivos: logger.listar() }));
       return;
     }
+    const corpo = dia ? logger.ler(dia) : logger.tail(url.searchParams.get("n"));
+    if (corpo === null) { res.statusCode = 404; res.setHeader("content-type", "text/plain; charset=utf-8"); res.end("sem log para esse dia (use dia=AAAA-MM-DD)"); return; }
+    res.setHeader("content-type", "text/plain; charset=utf-8");
+    if (url.searchParams.get("baixar") === "1") res.setHeader("content-disposition", 'attachment; filename="bolsai-' + (dia || new Date().toISOString().slice(0, 10)) + '.log"');
+    res.end(corpo);
+    return;
+  }
+  if (url.pathname === "/historico") {
+    res.setHeader("cache-control", "no-store");
     const tipo = url.searchParams.get("tipo") || "sinais";
     const corpo = history.exportar(tipo);
     if (corpo === null) {
@@ -780,11 +785,6 @@ const server = http.createServer(async (req, res) => {
     res.setHeader("content-type", "application/x-ndjson; charset=utf-8");
     res.setHeader("content-disposition", 'attachment; filename="bolsai-' + tipo + "-" + new Date().toISOString().slice(0, 10) + '.jsonl"');
     res.end(corpo);
-    return;
-  }
-  if (!checkAuth(url) && url.pathname === "/") {
-    res.statusCode = 401;
-    res.end("Token inválido. Use ?t=SEU_ACCESS_TOKEN");
     return;
   }
   let fp = path.join(__dirname, "public", url.pathname === "/" ? "index.html" : url.pathname);
@@ -805,10 +805,6 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocket.Server({ server, path: "/ws" });
 wss.on("connection", (ws, req) => {
   const url = new URL(req.url || "", "http://localhost");
-  if (ACCESS && url.searchParams.get("t") !== ACCESS) {
-    ws.close(4001, "unauthorized");
-    return;
-  }
   clients.add(ws);
   ws.send(JSON.stringify({
     type: "snapshot",
@@ -878,6 +874,10 @@ async function main() {
   }
   const h = history.init();
   log("histórico", h.ok ? ("pasta " + h.dir + " · sinais=" + h.sinais + " resultados=" + h.resultados) : ("falhou: " + h.err));
+  instalarEncerramento();
+  const lg = logger.init();
+  log("logs", lg.ok ? ("gravando em " + lg.dir) : ("sem arquivo de log: " + lg.err));
+  log("partida", "servidor iniciando · node " + process.version + " · pid " + process.pid);
   server.listen(PORT, () => log("Servidor na porta " + PORT));
   if (!MOCK) {
     priceLoop();
@@ -891,6 +891,15 @@ async function main() {
   }
   aiLoop();
   learningLoop();
+}
+
+/* ---------- Encerramento: não perder as últimas linhas do log ---------- */
+function instalarEncerramento() {
+  const encerrar = (motivo, code) => { try { log("desligando", motivo); logger.flushSync(); } catch {} process.exit(code); };
+  process.on("SIGTERM", () => encerrar("SIGTERM (o Render parou ou reiniciou o serviço)", 0));
+  process.on("SIGINT", () => encerrar("SIGINT", 0));
+  process.on("uncaughtException", e => { try { log("ERRO FATAL", e); logger.flushSync(); } catch {} process.exit(1); });
+  process.on("unhandledRejection", e => log("rejeição não tratada", e));
 }
 
 if (require.main === module) main();
