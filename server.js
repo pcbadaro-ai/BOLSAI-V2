@@ -451,7 +451,7 @@ function aiPrompt(a) {
   for (const [k, H] of Object.entries(a.kind === "crypto" ? HZN_C : HZN)) {
     const r = an[k];
     if (!r) continue;
-    lines.push(HZ_NAME[k] + " (" + H + (a.kind === "crypto" ? " dias" : " pregões") + "): rec=" + r.rec + " conf=" + r.conf + " med=" + (r.st.med * 100).toFixed(1) + "% n=" + r.st.n + " testes_indep=" + (r.bt ? r.bt.nEff : 0));
+    lines.push(HZ_NAME[k] + " (" + H + (a.kind === "crypto" ? " dias" : " pregões") + "): rec=" + r.rec + " conf=" + r.conf + " med=" + (r.st.med * 100).toFixed(1) + "% n=" + r.st.n + " testes_indep=" + (r.bt ? r.bt.nEff : 0) + " casos_indep=" + Math.floor(r.st.n / H));
   }
   const macro = a.mkt === "BR" && a.macro
     ? "Selic " + (a.macro.selic ?? "n/d") + "%, USD/BRL " + (a.macro.usdbrl ?? "n/d") + ", IPCA12m " + (a.macro.ipca12m != null ? (a.macro.ipca12m * 100).toFixed(1) + "%" : "n/d")
@@ -463,7 +463,7 @@ function aiPrompt(a) {
     "\nManchetes numeradas (cite só esses IDs):\n" + newsBlock +
     "\n\nResponda APENAS um JSON válido:\n" +
     '{"sentimento":-1 a 1,"veredito":"confirma"|"neutro"|"contradiz","recomendacao":"buy"|"wait"|"obs"|"avoid"|null,"recomendacao_1m":idem,"recomendacao_5m":idem,"resumo":"...","riscos":["..."],"cenarios":{"alta":"...","base":"...","baixa":"..."},"x":"...","fontes":["N1",...]}\n' +
-    "Horizontes: use SEMPRE os nomes 1 semana, 1 mês e 5 meses (nunca 1s, 1m, 5m, segundos ou minutos); recomendacao, recomendacao_1m e recomendacao_5m correspondem a eles. Se testes_indep for menor que 10, não cite taxa de acerto nem apresente a mediana como expectativa de retorno. Não cite preços, níveis de suporte/resistência, alvos nem porcentagens que não estejam neste texto. Regras: só rebaixe o sinal estatístico se citar ao menos uma manchete real (N1, N2...). Nunca invente números. Nunca melhore o sinal.";
+    "Horizontes: use SEMPRE os nomes 1 semana, 1 mês e 5 meses (nunca 1s, 1m, 5m, segundos ou minutos); recomendacao, recomendacao_1m e recomendacao_5m correspondem a eles. Se testes_indep ou casos_indep for menor que 10, não cite taxa de acerto nem apresente a mediana ou a faixa como expectativa de retorno. Não cite preços, níveis de suporte/resistência, alvos nem porcentagens que não estejam neste texto. Regras: só rebaixe o sinal estatístico se citar ao menos uma manchete real (N1, N2...). Nunca invente números. Nunca melhore o sinal.";
   return { text, ctx: { news: fresh, text } };
 }
 
