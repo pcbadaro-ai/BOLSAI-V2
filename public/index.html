@@ -343,6 +343,7 @@ function reasonText(a) {
 function aiHTML(a) {
   if (!features.ai) return `<div class="ai muted">A IA está desligada. Defina GEMINI_API_KEY no servidor.</div>`;
   if (!a.ai) return `<div class="ai muted">A IA ainda está lendo as notícias deste ativo. Isso leva alguns segundos.</div>`;
+  if (!a.ai.resumo && !(a.ai.cenarios && (a.ai.cenarios.alta || a.ai.cenarios.base || a.ai.cenarios.baixa))) return `<div class="ai muted">Sem leitura da IA para este ativo agora.</div>`;
   const s = a.ai;
   return `<div class="ai"><div class="top"><b>${VER[s.veredito]}</b>
     <span class="meter" title="Sentimento ${s.sentimento.toFixed(2)}"><i style="left:calc(${(s.sentimento + 1) * 50}% - 1px)"></i></span>
@@ -374,8 +375,8 @@ function renderDetail(a) {
   const an = anOf(a);
   if (!an) { el.innerHTML = `<div class="empty">${a.analyses && Object.keys(a.analyses).length ? `Histórico insuficiente de ${a.sym} para o horizonte de ${HZN[hz]}. Tente um horizonte menor.` : `Analisando ${a.sym}…`}</div>`; return; }
   const st = an.st, bt = an.bt, f = finalOf(a), ch = a.price / a.open24 - 1, efN = Math.floor(st.n / an.H);
-  const exit = an.exitDay && f !== "avoid" ? exitLabel(a, an.exitDay) : null;
-  let entry = f === "avoid" ? "Sem entrada sugerida." : st.pDip >= 0.5 ? `Em ${Math.round(st.pDip * 100)}% dos casos parecidos o preço recuou mais de 0,5% nos 3 primeiros dias. Ordem limite perto de ${money(a, a.price * (1 + st.dip))}.` : "Os casos parecidos quase não recuaram. Entrada a mercado.";
+  const exit = an.exitDay && f !== "avoid" && efN >= 10 ? exitLabel(a, an.exitDay) : null;
+  let entry = f === "avoid" ? "Sem entrada sugerida." : efN < 10 ? "Amostra pequena demais para sugerir um ponto de entrada." : st.pDip >= 0.5 ? `Em ${Math.round(st.pDip * 100)}% dos casos parecidos o preço recuou mais de 0,5% nos 3 primeiros dias. Ordem limite perto de ${money(a, a.price * (1 + st.dip))}.` : "Os casos parecidos quase não recuaram. Entrada a mercado.";
   if (document.activeElement && document.activeElement.id === "amt") return;
   const keep = $("#amt") ? $("#amt").value : "1000", openDet = !!(el.querySelector("details") && el.querySelector("details").open);
   const down = f !== an.rec ? `<p>A IA rebaixou o sinal estatístico de ${LABEL[an.rec]} para ${LABEL[f]}.</p>` : "";
@@ -395,12 +396,12 @@ function renderDetail(a) {
       <div class="m"><div class="k">Chance de alta</div><div class="v">${Math.round(st.pUp * 100)}%</div><div class="s">em ${st.n} casos</div></div>
       <div class="m"><div class="k">Acerto do sinal</div><div class="v">${bt.buyWin == null || bt.nEff < 10 ? "—" : Math.round(bt.buyWin * 100) + "%"}</div><div class="s">${bt.buyWin == null ? "n/d" : bt.nEff < 10 ? `poucos testes (${bt.nEff} de 10)` : `${bt.nEff} testes independentes`}</div></div>
       <div class="m"><div class="k">Confiança</div><div class="v">${an.conf}</div><div class="s">backtest</div></div>
-      <div class="m"><div class="k">Sair em</div><div class="v" style="font-size:15px">${exit || "sem alvo"}</div><div class="s">${exit ? `dia ${an.exitDay}` : "sem dia positivo"}</div></div>
+      <div class="m"><div class="k">Sair em</div><div class="v" style="font-size:15px">${exit || (efN < 10 ? "—" : "sem alvo")}</div><div class="s">${exit ? `dia ${an.exitDay}` : (efN < 10 ? "amostra pequena" : "sem dia positivo")}</div></div>
     </div>
     <h3>Leitura da IA</h3>${aiHTML(a)}
     <h3>Quando entrar e quando sair</h3>
     <div class="when"><p><b>Entrada:</b> ${entry}</p>
-    <p><b>Retorno:</b> ${exit ? `o ganho mediano chega ao pico em ${exit}.` : "sem dia com retorno mediano positivo."}</p></div>
+    <p><b>Retorno:</b> ${exit ? `o ganho mediano chega ao pico em ${exit}.` : (efN < 10 ? "amostra pequena demais para indicar um dia de saída." : "sem dia com retorno mediano positivo.")}</p></div>
     ${hoursHTML(a)}
     <h3>Simulador</h3>
     <div class="sim"><label for="amt" class="muted">Se eu investir ${a.ccy === "BRL" ? "R$" : "US$"}</label><input id="amt" inputmode="decimal" value="${esc(keep)}"><span id="simout" class="mono"></span></div>
@@ -409,7 +410,7 @@ function renderDetail(a) {
     <details><summary>Como funciona</summary><p>O servidor guarda 15 medidas do histórico e procura os dias mais parecidos. Os botões 1 semana, 1 mês e 5 meses mudam só o prazo olhado nesses casos parecidos. Quanto maior o prazo, menos janelas independentes existem no histórico e menos o acerto pode ser comprovado.</p></details>`;
   const upd = () => {
     const v = parseFloat(String($("#amt").value).replace(",", ".")) || 0;
-    $("#simout").innerHTML = `esperado <b class="${cls(st.med)}">${pct(st.med)}</b> → ${a.ccy === "BRL" ? "R$" : "US$"} ${nf(v * (1 + st.med), 2, 2)}`;
+    $("#simout").innerHTML = efN < 10 ? "sem estimativa: amostra pequena" : `esperado <b class="${cls(st.med)}">${pct(st.med)}</b> → ${a.ccy === "BRL" ? "R$" : "US$"} ${nf(v * (1 + st.med), 2, 2)}`;
   };
   if (openDet) el.querySelector("details").open = true;
   $("#amt").addEventListener("input", upd); upd(); drawChart(a);
