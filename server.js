@@ -413,6 +413,8 @@ function validateAI(ai, ctx, analyses) {
   }
   const hasSource = ai.fontes.length > 0;
   const order = { buy: 0, wait: 1, obs: 2, avoid: 3 };
+  // "confirma" não faz sentido quando o estatístico é espera ou observar: vira neutro
+  if (analyses && ai.veredito === "confirma" && analyses["1s"] && ["wait", "obs"].includes(analyses["1s"].rec)) ai.veredito = "neutro";
   const apply = (statRec, aiRec) => {
     if (!aiRec) return statRec;
     if (!hasSource && order[aiRec] > order[statRec || "obs"]) return null;
@@ -436,6 +438,10 @@ function validateAI(ai, ctx, analyses) {
     if (!ai.resumo) ai.resumo = "O resumo da IA foi descartado porque citava números que não estão nos dados. Veja as manchetes abaixo.";
   }
   if (!hasSource && (ai.recomendacao || ai.recomendacao_1m)) ai.notas.push("rebaixamento sem fonte verificável foi ignorado");
+  // resposta vazia ou sem texto utilizável: avisa em vez de mostrar um cartão em branco
+  if (!ai.resumo && !ai.riscos.length && !ai.cenarios.alta && !ai.cenarios.base && !ai.cenarios.baixa && !ai.x) {
+    ai.resumo = "A IA não trouxe uma leitura utilizável para este ativo. Use as manchetes e a análise estatística acima.";
+  }
   return ai;
 }
 
